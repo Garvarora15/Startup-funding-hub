@@ -114,14 +114,33 @@ function parseInlineMarkdown(text: string) {
 
 export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, currentLanguage = 'english' }: ChatAssistantProps) {
   const t = TRANSLATIONS[currentLanguage] || TRANSLATIONS.english;
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: `Hello! I am the **IBM Granite AI Funding Strategist**.\n\nI am connected to Watsonx.ai and equipped with detailed knowledge on 30 Indian government, institutional seed funding, and academic research/study schemes.\n\nFill out your **Startup Profile** on the left, and I can dynamically match schemes for your venture, explain your eligibility, or help you draft highly competitive proposals.\n\n**What would you like to explore today?**`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const CHAT_STORAGE_KEY = 'sfh_chat_messages';
+  const CHAT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+  const getWelcomeMessage = (): ChatMessage => ({
+    id: 'welcome',
+    role: 'assistant',
+    content: `Hello! I am the **IBM Granite AI Funding Strategist**.\n\nI am connected to Watsonx.ai and equipped with detailed knowledge on 30 Indian government, institutional seed funding, and academic research/study schemes.\n\nFill out your **Startup Profile** on the left, and I can dynamically match schemes for your venture, explain your eligibility, or help you draft highly competitive proposals.\n\n**What would you like to explore today?**`,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+
+  const loadMessages = (): ChatMessage[] => {
+    try {
+      const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
+      if (!raw) return [getWelcomeMessage()];
+      const { messages: saved, savedAt } = JSON.parse(raw);
+      // Expire after 5 minutes
+      if (Date.now() - savedAt > CHAT_TTL_MS) {
+        sessionStorage.removeItem(CHAT_STORAGE_KEY);
+        return [getWelcomeMessage()];
+      }
+      return saved;
+    } catch {
+      return [getWelcomeMessage()];
     }
-  ]);
+  };
+
+  const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [reasoningLogs, setReasoningLogs] = useState<string[]>([]);
@@ -335,6 +354,13 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
       });
     }
   };
+
+  // Persist chat messages to sessionStorage with timestamp for 5-min TTL
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({ messages, savedAt: Date.now() }));
+    } catch { /* storage full or unavailable — fail silently */ }
+  }, [messages]);
 
   useEffect(() => { scrollBottom(); }, [messages, loading, reasoningLogs]);
 
