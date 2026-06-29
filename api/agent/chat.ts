@@ -104,22 +104,18 @@ Core Rules:
     const useOrchestrate = !!(process.env.ORCHESTRATE_SERVICE_URL && process.env.ORCHESTRATE_AGENT_ID);
 
     let reply: string;
-    let answeredBy: 'orchestrate' | 'granite' = 'granite';
     if (useOrchestrate) {
       try {
         reply = await callOrchestrateAgentWithRetry(messages);
-        answeredBy = 'orchestrate';
       } catch (orchestrateError: any) {
         console.error('Orchestrate agent error, falling back to raw Granite:', orchestrateError.message);
         reply = await callGraniteWithRetry(messages, { temperature: 0.7, max_tokens: 1024 });
-        answeredBy = 'granite';
       }
     } else {
       reply = await callGraniteWithRetry(messages, { temperature: 0.7, max_tokens: 1024 });
-      answeredBy = 'granite';
     }
 
-    res.json({ success: true, reply, timestamp: new Date().toISOString(), _debug_answeredBy: answeredBy });
+    res.json({ success: true, reply, timestamp: new Date().toISOString() });
   } catch (error: any) {
     console.error('Watsonx chat error:', error.message);
     const fallback = generateLocalChatFallback(message, startupProfile, language);

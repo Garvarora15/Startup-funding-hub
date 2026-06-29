@@ -67,7 +67,7 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [reasoningLogs, setReasoningLogs] = useState<string[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -208,7 +208,14 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
     { text: currentLanguage === 'hindi' ? "राज्य-स्तरीय फंडिंग योजनाएं" : currentLanguage === 'punjabi' ? "ਰਾਜ-ਪੱਧਰੀ ਫੰਡਿੰਗ ਯੋਜਨਾਵਾਂ" : "State-level startup funding schemes", icon: "🗺️" },
   ];
 
-  const scrollBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => { scrollBottom(); }, [messages, loading, reasoningLogs]);
 
@@ -319,7 +326,7 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 bg-[#F5F5F0]/30">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-4 bg-[#F5F5F0]/30">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex items-start gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''}`}>
             <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border text-xs font-mono font-bold ${msg.role === 'user' ? 'bg-[#5A5A40] border-transparent text-white' : 'bg-[#F0F0E8] border-[#DEDCCF] text-[#5A5A40]'}`}>
@@ -375,7 +382,6 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Quick Prompts - show until user sends 2 messages */}
