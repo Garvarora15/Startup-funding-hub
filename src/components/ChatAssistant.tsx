@@ -75,7 +75,7 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
 
   const [ttsMsgId, setTtsMsgId] = useState<string | null>(null);
   const [isPlayingTts, setIsPlayingTts] = useState(false);
-  const [audioTts, setAudioTts] = useState<HTMLAudioElement | null>(null);
+  const audioTtsRef = useRef<{ pause: () => void } | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -105,10 +105,10 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
 
   useEffect(() => {
     return () => {
-      if (audioTts) audioTts.pause();
+      if (audioTtsRef.current) audioTtsRef.current.pause();
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
     };
-  }, [audioTts]);
+  }, []);
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -127,14 +127,16 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
 
   const speakMessage = async (msgId: string, text: string) => {
     if (isPlayingTts && ttsMsgId === msgId) {
-      if (audioTts) audioTts.pause();
+      if (audioTtsRef.current) audioTtsRef.current.pause();
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      audioTtsRef.current = null;
       setIsPlayingTts(false);
       setTtsMsgId(null);
       return;
     }
-    if (audioTts) audioTts.pause();
+    if (audioTtsRef.current) audioTtsRef.current.pause();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    audioTtsRef.current = null;
     setTtsMsgId(msgId);
     setIsPlayingTts(true);
 
@@ -143,6 +145,15 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
       .replace(/\*(.*?)\*/g, '$1')
       .replace(/`(.*?)`/g, '$1')
       .replace(/\[(.*?)\]\((.*?)\)/g, '$1');
+
+    // Watson TTS (and most browser engines) have no real Punjabi/Gurmukhi
+    // voice — feeding Gurmukhi text to a Hindi voice silently drops most of
+    // the words. Until a real Punjabi voice is available, be upfront with
+    // browser speech synthesis only, which at least won't mis-render text.
+    if (currentLanguage === 'punjabi') {
+      fallbackWebSpeechChat(cleanedText, msgId);
+      return;
+    }
 
     try {
       const response = await fetch('/api/tts/synthesize', {
@@ -153,9 +164,9 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
       const data = await response.json();
       if (data.success && data.audioContent) {
         const newAudio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
-        newAudio.onended = () => { setIsPlayingTts(false); setTtsMsgId(null); };
+        newAudio.onended = () => { setIsPlayingTts(false); setTtsMsgId(null); audioTtsRef.current = null; };
         newAudio.onerror = () => fallbackWebSpeechChat(cleanedText, msgId);
-        setAudioTts(newAudio);
+        audioTtsRef.current = newAudio;
         newAudio.play();
       } else {
         fallbackWebSpeechChat(cleanedText, msgId);
@@ -181,15 +192,15 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
       if (matchedVoice) utterance.voice = matchedVoice;
       else if (currentLanguage !== 'english') utterance.lang = 'en-US'; // graceful degrade if no voice for this language
 
-      utterance.onend = () => { setIsPlayingTts(false); setTtsMsgId(null); };
-      utterance.onerror = () => { setIsPlayingTts(false); setTtsMsgId(null); };
+      utterance.onend = () => { setIsPlayingTts(false); setTtsMsgId(null); audioTtsRef.current = null; };
+      utterance.onerror = () => { setIsPlayingTts(false); setTtsMsgId(null); audioTtsRef.current = null; };
       window.speechSynthesis.speak(utterance);
     };
 
     window.speechSynthesis.cancel();
     setIsPlayingTts(true);
     setTtsMsgId(msgId);
-    setAudioTts({ pause: () => { window.speechSynthesis.cancel(); setIsPlayingTts(false); setTtsMsgId(null); } } as any);
+    audioTtsRef.current = { pause: () => { window.speechSynthesis.cancel(); setIsPlayingTts(false); setTtsMsgId(null); audioTtsRef.current = null; } };
 
     // Chrome can silently drop an utterance if speak() is called in the same
     // tick as cancel(), or before the voice list has finished loading.
@@ -374,7 +385,12 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
               </div>
               <div className="flex items-center justify-between gap-4 mt-1.5 min-w-[120px]">
                 {msg.role === 'assistant' ? (
-                  <button type="button" onClick={() => speakMessage(msg.id, msg.content)} className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-[#5A5A40] hover:text-[#4A4A30] hover:bg-[#ECEBE4]/50 font-mono font-bold transition cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => speakMessage(msg.id, msg.content)}
+                    title={currentLanguage === 'punjabi' ? 'Punjabi voice quality may be limited or unavailable in your browser' : undefined}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-[#5A5A40] hover:text-[#4A4A30] hover:bg-[#ECEBE4]/50 font-mono font-bold transition cursor-pointer"
+                  >
                     {isPlayingTts && ttsMsgId === msg.id ? (
                       <><Square className="w-2.5 h-2.5 fill-[#5A5A40] text-[#5A5A40]" /><span>{currentLanguage === 'hindi' ? 'रोकें' : currentLanguage === 'punjabi' ? 'ਰੋਕੋ' : 'Stop'}</span></>
                     ) : (
