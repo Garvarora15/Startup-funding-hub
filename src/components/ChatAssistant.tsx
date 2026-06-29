@@ -169,15 +169,47 @@ export default function ChatAssistant({ startupProfile, onSelectGrantFromChat, c
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setIsPlayingTts(false); setTtsMsgId(null); return;
     }
+
+    const speakNow = () => {
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = currentLanguage === 'hindi' ? 'hi-IN' : currentLanguage === 'punjabi' ? 'pa-IN' : 'en-US';
+
+      // Try to pick a voice that actually matches the language; Chrome can
+      // silently no-op if no matching voice is found for utterance.lang.
+      const voices = window.speechSynthesis.getVoices();
+      const matchedVoice = voices.find(v => v.lang === utterance.lang) || voices.find(v => v.lang?.startsWith(utterance.lang.split('-')[0]));
+      if (matchedVoice) utterance.voice = matchedVoice;
+      else if (currentLanguage !== 'english') utterance.lang = 'en-US'; // graceful degrade if no voice for this language
+
+      utterance.onend = () => { setIsPlayingTts(false); setTtsMsgId(null); };
+      utterance.onerror = () => { setIsPlayingTts(false); setTtsMsgId(null); };
+      window.speechSynthesis.speak(utterance);
+    };
+
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = currentLanguage === 'hindi' ? 'hi-IN' : currentLanguage === 'punjabi' ? 'pa-IN' : 'en-US';
-    utterance.onend = () => { setIsPlayingTts(false); setTtsMsgId(null); };
-    utterance.onerror = () => { setIsPlayingTts(false); setTtsMsgId(null); };
     setIsPlayingTts(true);
     setTtsMsgId(msgId);
-    window.speechSynthesis.speak(utterance);
     setAudioTts({ pause: () => { window.speechSynthesis.cancel(); setIsPlayingTts(false); setTtsMsgId(null); } } as any);
+
+    // Chrome can silently drop an utterance if speak() is called in the same
+    // tick as cancel(), or before the voice list has finished loading.
+    const voicesReady = window.speechSynthesis.getVoices().length > 0;
+    if (voicesReady) {
+      setTimeout(speakNow, 50);
+    } else {
+      let hasSpoken = false;
+      const speakOnce = () => {
+        if (hasSpoken) return;
+        hasSpoken = true;
+        speakNow();
+      };
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        setTimeout(speakOnce, 50);
+      };
+      // Safety net in case onvoiceschanged never fires
+      setTimeout(speakOnce, 500);
+    }
   };
 
   useEffect(() => {

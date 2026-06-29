@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const arrayBuffer = await response.arrayBuffer();
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
-    res.json({ success: true, audio: base64Audio, format: 'mp3' });
+    res.json({ success: true, audioContent: base64Audio, format: 'mp3' });
   } catch (error: any) {
     console.error('[TTS] Error:', error.message);
     // Always fallback gracefully — browser Web Speech API will handle it
