@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Cpu, Wifi, Clock, Globe } from 'lucide-react';
+import { Cpu, Wifi, Clock, Globe, Shield, Network } from 'lucide-react';
 
 interface NavbarProps {
   currentLanguage: string;
@@ -71,6 +71,14 @@ export default function Navbar({ currentLanguage, onLanguageChange }: NavbarProp
         <div className="hidden md:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 text-white">
           <Wifi className="w-3.5 h-3.5 text-[#10B981] animate-pulse" />
           <span>Watsonx LLM: <strong className="text-[#10B981]">ACTIVE</strong></span>
+        </div>
+        <div className="hidden lg:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 text-white">
+          <Network className="w-3.5 h-3.5 text-[#10B981]" />
+          <span>Orchestrate: <strong className="text-[#10B981]">READY</strong></span>
+        </div>
+        <div className="hidden lg:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 text-white">
+          <Shield className="w-3.5 h-3.5 text-[#10B981]" />
+          <span>Guardrail: <strong className="text-[#10B981]">ACTIVE</strong></span>
         </div>
       </div>
     </nav>

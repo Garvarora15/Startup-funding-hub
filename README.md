@@ -23,6 +23,8 @@
 - [Deploy to Vercel](#️-deploy-to-vercel)
 - [Environment Variables](#-environment-variables)
 - [IBM AI Details](#-ibm-ai-details)
+- [Voice: TTS & STT Behavior](#-voice-tts--stt-behavior)
+- [Orchestrate & Compliance Modules](#-orchestrate--compliance-modules)
 - [Changelog](#-changelog)
 - [License](#-license)
 
@@ -48,10 +50,13 @@ The app connects to **IBM Watsonx.ai** using the `ibm/granite-4-h-small` model t
 | 3 | 📊 **Match Score Engine** | Dynamic 0–100% eligibility scoring per grant based on your startup profile (sector, stage, location, funding) |
 | 4 | 📝 **Proposal Generator** | AI-drafted 6-section professional grant proposals tailored per scheme with rendered markdown tables |
 | 5 | 🎤 **Pitch Generator** | Elevator, one-pager, investor-hook, and Twitter pitches auto-generated in 7 languages |
-| 6 | 🔊 **Text to Speech** | Grant details read aloud via Watson TTS (primary) or browser Web Speech API fallback with instant voice loading |
-| 7 | 🌐 **Multilingual UI** | Full interface in English, Hindi (Devanagari), Punjabi (Gurmukhi), Spanish, French, German, Japanese |
-| 8 | ⭐ **Favorites** | Star grants to save them and filter your shortlist |
-| 9 | 🔎 **Advanced Filters** | Filter by stage (Idea/Seed/Growth), sector, and funding limit |
+| 6 | 🔊 **Text to Speech** | Grant details and AI responses read aloud via **Watson TTS** (primary); automatically falls back to the browser's **Web Speech API** if Watson TTS credentials are missing or the request fails, so audio always works |
+| 7 | 🎙️ **Speech to Text** | Voice input in the chat agent via the browser's native **Web Speech API** (`SpeechRecognition` / `webkitSpeechRecognition`), language-matched to the active UI language |
+| 8 | 🌐 **Multilingual UI** | Full interface in English, Hindi (Devanagari), Punjabi (Gurmukhi), Spanish, French, German, Japanese |
+| 9 | ⭐ **Favorites** | Star grants to save them and filter your shortlist |
+| 10 | 🔎 **Advanced Filters** | Filter by stage (Idea/Seed/Growth), sector, and funding limit |
+| 11 | 🧭 **Watsonx Orchestrate (optional)** | Alternate backend path that can call a deployed IBM watsonx Orchestrate agent (separate from raw Watsonx.ai) instead of the direct Granite chat helper |
+| 12 | 🛡️ **Compliance Guardrail** | Blocks the AI agent from attempting to auto-submit applications or handle credentials on external portals, and stamps AI-generated drafts with a "human validation required" notice |
 
 ---
 
@@ -79,7 +84,9 @@ The app connects to **IBM Watsonx.ai** using the `ibm/granite-4-h-small` model t
 startup-funding/
 ├── api/                                  # Vercel Serverless Functions
 │   ├── lib/
-│   │   └── watsonx.ts                    # IBM IAM auth + Granite chat helper
+│   │   ├── watsonx.ts                    # IBM IAM auth + Granite chat helper (Watsonx.ai)
+│   │   ├── orchestrate.ts                # Optional IBM watsonx Orchestrate agent client (separate IBM service)
+│   │   └── compliance.ts                 # Legal-boundary guardrail — blocks auto-submission, stamps "human validation required"
 │   ├── grants/
 │   │   ├── index.ts                      # GET  /api/grants
 │   │   └── calculate-match.ts            # POST /api/grants/calculate-match
@@ -190,7 +197,36 @@ vercel dev
 
 ---
 
-## 📝 Changelog
+## 🔊 Voice: TTS & STT Behavior
+
+**Text to Speech (`/api/tts/synthesize`)**
+1. The serverless function checks for `WATSON_TTS_API_KEY` and `WATSON_TTS_URL`.
+2. If both are present, it calls Watson Text to Speech with a language-matched voice (e.g. `hi-IN_AditiVoice` for Hindi/Punjabi, `es-ES_LauraV3Voice` for Spanish, `fr-FR_ReneeV3Voice` for French, `de-DE_BirgitV3Voice` for German, `ja-JP_EmiV3Voice` for Japanese, `en-US_AllisonV3Voice` otherwise) and returns base64 MP3 audio.
+3. If the credentials are missing, the Watson API call fails, or any error is thrown, the function responds with `{ success: false, fallback: true }` instead of erroring out.
+4. The frontend (`ChatAssistant.tsx`) checks that response: on `fallback: true` (or any network/audio playback error), it automatically switches to the browser's native **Web Speech API** (`window.speechSynthesis`) using the same language mapping — so the "🔊 Listen" feature never breaks even without IBM TTS credentials configured.
+
+**Speech to Text (mic input)**
+- Voice input is handled entirely client-side via the browser's native `SpeechRecognition` / `webkitSpeechRecognition` API — there is no IBM STT service involved.
+- The recognition language is set to match the active UI language before listening starts.
+- If the browser doesn't support speech recognition, the mic button alerts the user rather than failing silently.
+
+---
+
+## 🧭 Orchestrate & Compliance Modules
+
+| Module | Purpose |
+|--------|---------|
+| `api/lib/orchestrate.ts` | An optional, alternate integration path that calls a **deployed IBM watsonx Orchestrate agent** (a separate IBM Cloud service from raw Watsonx.ai) over its chat/completions endpoint, using its own IAM auth/token caching. Useful if the agent logic is built in the Orchestrate Agent Builder console instead of being hardcoded in `watsonx.ts`. Requires `ORCHESTRATE_SERVICE_URL`, `ORCHESTRATE_AGENT_ID`, and `ORCHESTRATE_IAM_APIKEY`. |
+| `api/lib/compliance.ts` | A legal-boundary guardrail addressing Problem Statement #18's requirement that the agent "respects legal boundaries and submission rules." It (1) detects and blocks any request asking the agent to act on the user's behalf on an external portal — auto-submitting forms, auto-logging in, entering credentials, bypassing CAPTCHA/verification — and (2) stamps AI-generated proposals/eligibility outputs with a clear "human validation required" notice, since such drafts are expected to need human review before submission. |
+
+---
+
+
+
+### v2.1.0 — June 2026
+- 📝 **Docs:** README Project Structure now includes `api/lib/orchestrate.ts` (optional watsonx Orchestrate agent client) and `api/lib/compliance.ts` (submission-boundary guardrail)
+- 📝 **Docs:** Added explicit Speech-to-Text feature entry and a full TTS/STT fallback behavior section
+- 📝 **Docs:** Added dedicated section documenting the Orchestrate and Compliance backend modules
 
 ### v2.0.0 — June 2026
 - ✅ **Fix:** TTS voice pre-loading on app mount — eliminates ~60s startup lag

@@ -68,6 +68,14 @@ export default function Footer({ currentLanguage, onOpenPolicy }: FooterProps) {
                 <Cpu className="w-3.5 h-3.5 text-[#10B981]" />
                 <span>LLM Backend: <strong className="text-[#10B981]">Granite-4-H-Small</strong></span>
               </div>
+              <div className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-lg border border-white/10">
+                <Terminal className="w-3.5 h-3.5 text-[#10B981]" />
+                <span>Agent Layer: <strong className="text-[#10B981]">Watsonx Orchestrate Ready</strong></span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-lg border border-white/10">
+                <Shield className="w-3.5 h-3.5 text-[#10B981]" />
+                <span>Guardrail: <strong className="text-[#10B981]">Compliance Layer Active</strong></span>
+              </div>
             </div>
           </div>
 
